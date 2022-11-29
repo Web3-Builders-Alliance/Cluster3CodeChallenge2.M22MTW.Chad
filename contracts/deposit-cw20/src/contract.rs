@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, Uint128, WasmMsg, BankMsg, coin
+    coin, from_binary, to_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Order,
+    Response, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ReceiveMsg, Expiration};
@@ -10,8 +11,13 @@ use cw721::Cw721ReceiveMsg;
 // use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{Cw20DepositResponse, ExecuteMsg, InstantiateMsg, QueryMsg, Cw20HookMsg, DepositResponse, Cw721HookMsg, Cw721DepositResponse};
-use crate::state::{Cw20Deposits, CW20_DEPOSITS, DEPOSITS, Deposits, CW721_DEPOSITS};
+use crate::msg::{
+    Cw20DepositResponse, Cw20HookMsg, Cw721DepositResponse, Cw721HookMsg, DepositResponse,
+    ExecuteMsg, InstantiateMsg, QueryMsg,
+};
+use crate::state::{
+    Cw20Deposits, Cw721Deposits, Deposits, CW20_DEPOSITS, CW721_DEPOSITS, DEPOSITS,
+};
 
 const CONTRACT_NAME: &str = "deposit-cw20-example";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -35,23 +41,27 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Deposit { } => execute_deposit(deps, info),
+        ExecuteMsg::Deposit {} => execute_deposit(deps, info),
         ExecuteMsg::Withdraw { amount, denom } => execute_withdraw(deps, info, amount, denom),
         ExecuteMsg::Receive(cw20_msg) => receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::ReceiveNft(cw721_msg) => receive_cw721(deps, env, info, cw721_msg),
-        ExecuteMsg::WithdrawCw20 { address, amount } => execute_cw20_withdraw(deps, env, info, address, amount),
-        ExecuteMsg::WithdrawNft { contract, token_id } => execute_cw721_withdraw(deps, info, contract, token_id)
+        ExecuteMsg::WithdrawCw20 { address, amount } => {
+            execute_cw20_withdraw(deps, env, info, address, amount)
+        }
+        ExecuteMsg::WithdrawNft { contract, token_id } => {
+            execute_cw721_withdraw(deps, info, contract, token_id)
+        }
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Deposits { address } => {
-            to_binary(&query_deposits(deps, address)?)
-        },
+        QueryMsg::Deposits { address } => to_binary(&query_deposits(deps, address)?),
         QueryMsg::Cw20Deposits { address } => to_binary(&query_cw20_deposits(deps, address)?),
-        QueryMsg::Cw721Deposits { address, contract } => to_binary(&query_cw721_deposits(deps, address, contract)?),
+        QueryMsg::Cw721Deposits { address, contract } => {
+            to_binary(&query_cw721_deposits(deps, address, contract)?)
+        }
     }
 }
 
@@ -62,31 +72,36 @@ pub fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Deposit { }) => execute_cw20_deposit(deps, env, info, cw20_msg.sender, cw20_msg.amount),
-        _ => Err(ContractError::CustomError { val: "Invalid Cw20HookMsg".to_string() }),
+        Ok(Cw20HookMsg::Deposit {}) => {
+            execute_cw20_deposit(deps, env, info, cw20_msg.sender, cw20_msg.amount)
+        }
+        _ => Err(ContractError::CustomError {
+            val: "Invalid Cw20HookMsg".to_string(),
+        }),
     }
 }
 
 pub fn receive_cw721(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     cw721_msg: Cw721ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw721_msg.msg) {
-        Ok(Cw721HookMsg::Deposit { }) => execute_cw721_deposit(deps, info, cw721_msg.sender, cw721_msg.token_id),
-        _ => Err(ContractError::CustomError { val: "Invalid Cw721HookMsg".to_string() }),
+        Ok(Cw721HookMsg::Deposit {}) => {
+            execute_cw721_deposit(deps, env, info, cw721_msg.sender, cw721_msg.token_id)
+        }
+        _ => Err(ContractError::CustomError {
+            val: "Invalid Cw721HookMsg".to_string(),
+        }),
     }
 }
 
-pub fn execute_deposit(
-    deps: DepsMut,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
+pub fn execute_deposit(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender.clone().into_string();
 
     let d_coins = info.funds[0].clone();
-    
+
     //check to see if deposit exists
     match DEPOSITS.load(deps.storage, (&sender, d_coins.denom.as_str())) {
         Ok(mut deposit) => {
@@ -94,7 +109,9 @@ pub fn execute_deposit(
             deposit.coins.amount += d_coins.amount;
             deposit.coins.amount = deposit.coins.amount.checked_add(d_coins.amount).unwrap();
             deposit.count = deposit.count.checked_add(1).unwrap();
-            DEPOSITS.save(deps.storage, (&sender, d_coins.denom.as_str()), &deposit).unwrap();
+            DEPOSITS
+                .save(deps.storage, (&sender, d_coins.denom.as_str()), &deposit)
+                .unwrap();
         }
         Err(_) => {
             //user does not exist, add them.
@@ -103,29 +120,37 @@ pub fn execute_deposit(
                 owner: info.sender,
                 coins: d_coins.clone(),
             };
-            DEPOSITS.save(deps.storage, (&sender, d_coins.denom.as_str()), &deposit).unwrap();
+            DEPOSITS
+                .save(deps.storage, (&sender, d_coins.denom.as_str()), &deposit)
+                .unwrap();
         }
     }
     Ok(Response::new()
         .add_attribute("execute", "deposit")
         .add_attribute("denom", d_coins.denom)
-        .add_attribute("amount", d_coins.amount)
-    )
+        .add_attribute("amount", d_coins.amount))
 }
 
 pub fn execute_withdraw(
     deps: DepsMut,
     info: MessageInfo,
-    amount:u128,
-    denom:String
+    amount: u128,
+    denom: String,
 ) -> Result<Response, ContractError> {
-
     let sender = info.sender.clone().into_string();
 
-    let mut deposit = DEPOSITS.load(deps.storage, (&sender, denom.as_str())).unwrap();
-    deposit.coins.amount = deposit.coins.amount.checked_sub(Uint128::from(amount)).unwrap();
+    let mut deposit = DEPOSITS
+        .load(deps.storage, (&sender, denom.as_str()))
+        .unwrap();
+    deposit.coins.amount = deposit
+        .coins
+        .amount
+        .checked_sub(Uint128::from(amount))
+        .unwrap();
     deposit.count = deposit.count.checked_sub(1).unwrap();
-    DEPOSITS.save(deps.storage, (&sender, denom.as_str()), &deposit).unwrap();
+    DEPOSITS
+        .save(deps.storage, (&sender, denom.as_str()), &deposit)
+        .unwrap();
 
     let msg = BankMsg::Send {
         to_address: sender.clone(),
@@ -136,11 +161,16 @@ pub fn execute_withdraw(
         .add_attribute("execute", "withdraw")
         .add_attribute("denom", denom)
         .add_attribute("amount", amount.to_string())
-        .add_message(msg)
-    )
+        .add_message(msg))
 }
 
-pub fn execute_cw20_deposit(deps: DepsMut, env:Env, info: MessageInfo, owner:String, amount:Uint128) -> Result<Response, ContractError> {
+pub fn execute_cw20_deposit(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    owner: String,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
     let cw20_contract_address = info.sender.clone().into_string();
     let expiration = Expiration::AtHeight(env.block.height + 20);
     match CW20_DEPOSITS.load(deps.storage, (&owner, &cw20_contract_address)) {
@@ -158,9 +188,9 @@ pub fn execute_cw20_deposit(deps: DepsMut, env:Env, info: MessageInfo, owner:Str
             let deposit = Cw20Deposits {
                 count: 1,
                 owner: owner.clone(),
-                contract:info.sender.into_string(),
+                contract: info.sender.into_string(),
                 amount,
-                stake_time:expiration,
+                stake_time: expiration,
             };
             CW20_DEPOSITS
                 .save(deps.storage, (&owner, &cw20_contract_address), &deposit)
@@ -179,15 +209,14 @@ pub fn execute_cw20_withdraw(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    contract:String,
+    contract: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let sender = info.sender.clone().into_string();
     match CW20_DEPOSITS.load(deps.storage, (&sender, &contract)) {
-
         Ok(mut deposit) => {
             if deposit.stake_time.is_expired(&env.block) == false {
-                return Err(ContractError::StakeDurationNotPassed {  });
+                return Err(ContractError::StakeDurationNotPassed {});
             }
 
             deposit.amount = deposit.amount.checked_sub(amount).unwrap();
@@ -196,36 +225,73 @@ pub fn execute_cw20_withdraw(
                 .save(deps.storage, (&sender, &contract), &deposit)
                 .unwrap();
 
-            let exe_msg = cw20_base::msg::ExecuteMsg::Transfer { recipient: sender, amount: Uint128::from(amount) };
-            let msg = WasmMsg::Execute { contract_addr: contract, msg: to_binary(&exe_msg)?, funds:vec![] };
+            let exe_msg = cw20_base::msg::ExecuteMsg::Transfer {
+                recipient: sender,
+                amount: Uint128::from(amount),
+            };
+            let msg = WasmMsg::Execute {
+                contract_addr: contract,
+                msg: to_binary(&exe_msg)?,
+                funds: vec![],
+            };
 
             Ok(Response::new()
-            .add_attribute("execute", "withdraw")
-            .add_message(msg))
+                .add_attribute("execute", "withdraw")
+                .add_message(msg))
         }
         Err(_) => {
-            return Err(ContractError::NoCw20ToWithdraw {  });
+            return Err(ContractError::NoCw20ToWithdraw {});
         }
     }
 }
 
-
-pub fn execute_cw721_deposit(deps: DepsMut, info: MessageInfo, owner:String, token_id:String) -> Result<Response, ContractError> {
+pub fn execute_cw721_deposit(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    owner: String,
+    token_id: String,
+) -> Result<Response, ContractError> {
     let cw721_contract_address = info.sender.clone().into_string();
-    unimplemented!()
+    match CW721_DEPOSITS.load(deps.storage, (&owner, &cw721_contract_address, &token_id)) {
+        Ok(_) => {} // user already deposited this token; nothing to do
+        Err(_) => {
+            //user has not yet deposited this token; deposit it
+            let deposit = Cw721Deposits {
+                owner: owner.clone(),
+                contract: info.sender.into_string(),
+                token_id: token_id.clone(),
+            };
+            CW721_DEPOSITS
+                .save(
+                    deps.storage,
+                    (&owner, &cw721_contract_address, &token_id),
+                    &deposit,
+                )
+                .unwrap();
+        }
+    }
+    Ok(Response::new()
+        .add_attribute("execute", "cw721_deposit")
+        .add_attribute("owner", owner)
+        .add_attribute("contract", cw721_contract_address.to_string())
+        .add_attribute("token_id", token_id.to_string()))
 }
 
 pub fn execute_cw721_withdraw(
     deps: DepsMut,
     info: MessageInfo,
-    contract:String,
+    contract: String,
     token_id: String,
 ) -> Result<Response, ContractError> {
     unimplemented!()
 }
 
-pub fn query_deposits(deps: Deps, address:String) -> StdResult<DepositResponse> {
-    let res: StdResult<Vec<_>> = DEPOSITS.prefix(&address).range(deps.storage, None, None, Order::Ascending).collect();
+pub fn query_deposits(deps: Deps, address: String) -> StdResult<DepositResponse> {
+    let res: StdResult<Vec<_>> = DEPOSITS
+        .prefix(&address)
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
     let deposits = res?;
     Ok(DepositResponse { deposits })
 }
@@ -239,7 +305,11 @@ fn query_cw20_deposits(deps: Deps, address: String) -> StdResult<Cw20DepositResp
     Ok(Cw20DepositResponse { deposits })
 }
 
-fn query_cw721_deposits(deps: Deps, address: String, contract:String) -> StdResult<Cw721DepositResponse> {
+fn query_cw721_deposits(
+    deps: Deps,
+    address: String,
+    contract: String,
+) -> StdResult<Cw721DepositResponse> {
     let res: StdResult<Vec<_>> = CW721_DEPOSITS
         .prefix((&contract, &address))
         .range(deps.storage, None, None, Order::Ascending)
@@ -247,5 +317,3 @@ fn query_cw721_deposits(deps: Deps, address: String, contract:String) -> StdResu
     let deposits = res?;
     Ok(Cw721DepositResponse { deposits })
 }
-
-
