@@ -279,28 +279,26 @@ pub fn execute_cw721_withdraw(
     token_id: String,
 ) -> Result<Response, ContractError> {
     let sender = info.sender.clone().into_string();
-    match CW721_DEPOSITS.load(deps.storage, (&sender, &contract, &token_id)) {
-        Ok(_) => {
-            CW721_DEPOSITS.remove(deps.storage, (&sender, &contract, &token_id));
 
-            let exe_msg = nft::contract::ExecuteMsg::TransferNft {
-                recipient: sender,
-                token_id: token_id.clone(),
-            };
-            let msg = WasmMsg::Execute {
-                contract_addr: contract,
-                msg: to_binary(&exe_msg)?,
-                funds: vec![],
-            };
-
-            Ok(Response::new()
-                .add_attribute("execute", "withdraw")
-                .add_message(msg))
-        }
-        Err(_) => {
-            return Err(ContractError::NoCw721ToWithdraw {});
-        }
+    if CW721_DEPOSITS.has(deps.storage, (&sender, &contract, &token_id)) {
+        return Err(ContractError::NoCw721ToWithdraw {});
     }
+
+    CW721_DEPOSITS.remove(deps.storage, (&sender, &contract, &token_id));
+
+    let exe_msg = nft::contract::ExecuteMsg::TransferNft {
+        recipient: sender,
+        token_id: token_id.clone(),
+    };
+    let msg = WasmMsg::Execute {
+        contract_addr: contract,
+        msg: to_binary(&exe_msg)?,
+        funds: vec![],
+    };
+
+    Ok(Response::new()
+        .add_attribute("execute", "withdraw")
+        .add_message(msg))
 }
 
 pub fn query_deposits(deps: Deps, address: String) -> StdResult<DepositResponse> {
