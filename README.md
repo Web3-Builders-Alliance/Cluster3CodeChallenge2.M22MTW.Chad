@@ -1,5 +1,5 @@
 # Cw721 Coding Challenge
 
-- [ ] Implement Deposit NFT
-- [ ] Implement Withdraw NFT
+- [x] Implement Deposit NFT
+- [x] Implement Withdraw NFT
 - [ ] Complete the mint and deposit and withdraw test
