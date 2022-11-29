@@ -83,13 +83,13 @@ pub fn receive_cw20(
 
 pub fn receive_cw721(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     cw721_msg: Cw721ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw721_msg.msg) {
         Ok(Cw721HookMsg::Deposit {}) => {
-            execute_cw721_deposit(deps, env, info, cw721_msg.sender, cw721_msg.token_id)
+            execute_cw721_deposit(deps, info, cw721_msg.sender, cw721_msg.token_id)
         }
         _ => Err(ContractError::CustomError {
             val: "Invalid Cw721HookMsg".to_string(),
@@ -247,30 +247,23 @@ pub fn execute_cw20_withdraw(
 
 pub fn execute_cw721_deposit(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     owner: String,
     token_id: String,
 ) -> Result<Response, ContractError> {
     let cw721_contract_address = info.sender.clone().into_string();
-    match CW721_DEPOSITS.load(deps.storage, (&owner, &cw721_contract_address, &token_id)) {
-        Ok(_) => {} // user already deposited this token; nothing to do
-        Err(_) => {
-            //user has not yet deposited this token; deposit it
-            let deposit = Cw721Deposits {
-                owner: owner.clone(),
-                contract: info.sender.into_string(),
-                token_id: token_id.clone(),
-            };
-            CW721_DEPOSITS
-                .save(
-                    deps.storage,
-                    (&owner, &cw721_contract_address, &token_id),
-                    &deposit,
-                )
-                .unwrap();
-        }
-    }
+    let deposit = Cw721Deposits {
+        owner: owner.clone(),
+        contract: info.sender.into_string(),
+        token_id: token_id.clone(),
+    };
+    CW721_DEPOSITS
+        .save(
+            deps.storage,
+            (&owner, &cw721_contract_address, &token_id),
+            &deposit,
+        )
+        .unwrap();
     Ok(Response::new()
         .add_attribute("execute", "cw721_deposit")
         .add_attribute("owner", owner)
