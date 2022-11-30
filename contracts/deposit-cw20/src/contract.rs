@@ -261,7 +261,7 @@ pub fn execute_cw721_deposit(
     CW721_DEPOSITS
         .save(
             deps.storage,
-            (&owner, &cw721_contract_address, &token_id),
+            (&cw721_contract_address, &owner, &token_id),
             &deposit,
         )
         .unwrap();
@@ -280,11 +280,11 @@ pub fn execute_cw721_withdraw(
 ) -> Result<Response, ContractError> {
     let sender = info.sender.clone().into_string();
 
-    if CW721_DEPOSITS.has(deps.storage, (&sender, &contract, &token_id)) {
+    if !CW721_DEPOSITS.has(deps.storage, (&contract, &sender, &token_id)) {
         return Err(ContractError::NoCw721ToWithdraw {});
     }
 
-    CW721_DEPOSITS.remove(deps.storage, (&sender, &contract, &token_id));
+    CW721_DEPOSITS.remove(deps.storage, (&contract, &sender, &token_id));
 
     let exe_msg = nft::contract::ExecuteMsg::TransferNft {
         recipient: sender,
